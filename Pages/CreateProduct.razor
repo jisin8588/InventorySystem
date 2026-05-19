@@ -1,0 +1,128 @@
+﻿@page "/create-product"
+@using Inventory.API.Models
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-icon">➕</span>
+        <h3>Create New Product</h3>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMsg))
+    {
+        <div class="alert alert-success">✅ @successMsg</div>
+    }
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {
+        <div class="alert alert-danger">⚠️ @errorMsg</div>
+    }
+
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Product Name *</label>
+            <input class="form-control @(nameError ? "is-invalid" : "")" @bind="productName" placeholder="e.g. Shirt" />
+            @if (nameError)
+            {
+                <span class="validation-msg">Product name is required.</span>
+            }
+        </div>
+        <div class="form-group">
+            <label>HSN Code</label>
+            <input class="form-control" @bind="hsnCode" placeholder="e.g. 6205" />
+        </div>
+    </div>
+
+    <div style="margin-top:24px">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+            <strong>Variants</strong>
+            <button class="btn btn-secondary btn-sm" @onclick="AddVariant">+ Add Variant</button>
+        </div>
+
+        @for (int vi = 0; vi < variants.Count; vi++)
+        {
+            var v = variants[vi];
+            var idx = vi;
+            <div class="variant-card">
+                <div class="variant-header">
+                    <input class="form-control" style="width:200px" @bind="v.Name" placeholder="Variant name (e.g. Size)" />
+                    <button class="btn btn-danger btn-sm" @onclick="() => variants.RemoveAt(idx)">✕ Remove</button>
+                </div>
+                <div class="option-tags">
+                    @for (int oi = 0; oi < v.Options.Count; oi++)
+                    {
+                        var opt = v.Options[oi];
+                        var oIdx = oi;
+                        <span class="option-tag">@opt <button @onclick="() => v.Options.RemoveAt(oIdx)">×</button></span>
+                    }
+                </div>
+                <div class="add-option-row">
+                    <input class="form-control" style="width:180px" @bind="v.NewOption" placeholder="Add option (e.g. S, M, L)" @onkeydown="(e) => OnOptionKey(e, v)" />
+                    <button class="btn btn-secondary btn-sm" @onclick="() => AddOption(v)">+ Add</button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="actions-row">
+        <button class="btn btn-primary" @onclick="Submit" disabled="@submitting">
+            @if (submitting)
+            {
+                <span>Saving...</span>
+            }
+            else
+            {
+                <span>💾 Create Product</span>
+            }
+        </button>
+        <button class="btn btn-secondary" @onclick='() => Nav.NavigateTo("/products")'>Cancel</button>
+    </div>
+</div>
+
+@code {
+    string productName = "", hsnCode = "";
+    bool nameError, submitting;
+    string successMsg = "", errorMsg = "";
+    List<VariantModel> variants = new();
+
+    class VariantModel
+    {
+        public string Name { get; set; } = "";
+        public List<string> Options { get; set; } = new();
+        public string NewOption { get; set; } = "";
+    }
+
+    void AddVariant() => variants.Add(new VariantModel());
+    void AddOption(VariantModel v) { if (!string.IsNullOrWhiteSpace(v.NewOption)) { v.Options.Add(v.NewOption.Trim()); v.NewOption = ""; } }
+    void OnOptionKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, VariantModel v) { if (e.Key == "Enter") AddOption(v); }
+
+    async Task Submit()
+    {
+        nameError = string.IsNullOrWhiteSpace(productName);
+        if (nameError) return;
+
+        submitting = true; successMsg = ""; errorMsg = "";
+        try
+        {
+            var payload = new
+            {
+                name = productName.Trim(),
+                hsnCode = hsnCode.Trim(),
+                variants = variants.Select(v => new { name = v.Name, options = v.Options }).ToList()
+            };
+            var res = await Http.PostAsJsonAsync("api/product", payload);
+            if (res.IsSuccessStatusCode)
+            {
+                successMsg = "Product created successfully!";
+                productName = ""; hsnCode = ""; variants.Clear();
+            }
+            else
+            {
+                var err = await res.Content.ReadAsStringAsync();
+                errorMsg = "Error: " + err;
+            }
+        }
+        catch (Exception ex) { errorMsg = "Failed to create product: " + ex.Message; }
+        finally { submitting = false; }
+    }
+}

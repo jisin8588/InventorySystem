@@ -1,0 +1,102 @@
+﻿@page "/products"
+@using Inventory.API.Models
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-icon">📋</span>
+        <h3>Product List</h3>
+        <div style="margin-left:auto">
+            <button class="btn btn-primary btn-sm" @onclick='() => Nav.NavigateTo("/create-product")'>➕ New Product</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {
+        <div class="alert alert-danger">⚠️ @errorMsg</div>
+    }
+
+    @if (loading)
+    {
+        <div class="loading"><div class="spinner"></div> Loading products...</div>
+    }
+    else if (!products.Any())
+    {
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p>No products found.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Product Name</th>
+                        <th>Code</th>
+                        <th>HSN Code</th>
+                        <th>Variants</th>
+                        <th>Total Stock</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        int i = (currentPage - 1) * pageSize + 1;
+                    }
+                    @foreach (var p in products)
+                    {
+                        <tr>
+                            <td>@i</td>
+                            <td><strong>@p.ProductName</strong></td>
+                            <td><span class="badge badge-info">@p.ProductCode</span></td>
+                            <td>@(string.IsNullOrEmpty(p.HSNCode) ? "-" : p.HSNCode)</td>
+                            <td>@(p.Variants?.Count ?? 0)</td>
+                            <td><strong>@p.TotalStock</strong></td>
+                            <td><span class="badge @(p.Active ? "badge-success" : "badge-danger")">@(p.Active ? "Active" : "Inactive")</span></td>
+                            <td>
+                                <button class="btn btn-success btn-sm" @onclick='() => Nav.NavigateTo($"/add-stock/{p.Id}")'>📥</button>
+                                <button class="btn btn-danger btn-sm" @onclick='() => Nav.NavigateTo($"/remove-stock/{p.Id}")'>📤</button>
+                            </td>
+                        </tr>
+                        i++;
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            <button disabled="@(currentPage == 1)" @onclick="PrevPage">← Prev</button>
+            <button class="active">@currentPage</button>
+            <button disabled="@(products.Count < pageSize)" @onclick="NextPage">Next →</button>
+        </div>
+    }
+</div>
+
+@code {
+    List<Product> products = new();
+    bool loading = true;
+    string errorMsg = "";
+    int currentPage = 1;
+    int pageSize = 10;
+
+    protected override async Task OnInitializedAsync() => await LoadProducts();
+
+    async Task LoadProducts()
+    {
+        loading = true; errorMsg = "";
+        try
+        {
+            products = await Http.GetFromJsonAsync<List<Product>>($"api/product?page={currentPage}&pageSize={pageSize}") ?? new();
+        }
+        catch (Exception ex) { errorMsg = "Failed to load products: " + ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task PrevPage() { if (currentPage > 1) { currentPage--; await LoadProducts(); } }
+    async Task NextPage() { currentPage++; await LoadProducts(); }
+}

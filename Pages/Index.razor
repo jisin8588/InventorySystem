@@ -1,0 +1,91 @@
+﻿@page "/"
+@using Inventory.API.Models
+@inject HttpClient Http
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">📦</div>
+        <div>
+            <div class="stat-value">@totalProducts</div>
+            <div class="stat-label">Total Products</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div>
+            <div class="stat-value">@activeProducts</div>
+            <div class="stat-label">Active Products</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div>
+            <div class="stat-value">@totalStock</div>
+            <div class="stat-label">Total Stock Units</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-icon">🕐</span>
+        <h3>Recent Products</h3>
+    </div>
+    @if (loading)
+    {
+        <div class="loading"><div class="spinner"></div> Loading...</div>
+    }
+    else if (products == null || !products.Any())
+    {
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p>No products yet. <a href="/create-product">Create your first product</a>.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product Name</th>
+                        <th>Code</th>
+                        <th>Stock</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in products.Take(5))
+                    {
+                        <tr>
+                            <td><strong>@p.ProductName</strong></td>
+                            <td><span class="badge badge-info">@p.ProductCode</span></td>
+                            <td>@p.TotalStock</td>
+                            <td><span class="badge @(p.Active ? "badge-success" : "badge-danger")">@(p.Active ? "Active" : "Inactive")</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    List<Product> products = new();
+    bool loading = true;
+    int totalProducts, activeProducts;
+    decimal totalStock;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            products = await Http.GetFromJsonAsync<List<Product>>("api/product") ?? new();
+            totalProducts = products.Count;
+            activeProducts = products.Count(p => p.Active);
+            totalStock = products.Sum(p => p.TotalStock);
+        }
+        catch { }
+        finally { loading = false; }
+    }
+}
